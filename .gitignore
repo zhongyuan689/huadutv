@@ -1,5 +1,4 @@
 # Built application files
-*.apk
 *.ap_
 *.aab
 
@@ -51,7 +50,9 @@ captures/
 ehthumbs.db
 Thumbs.db
 
-# Release output (APK kept in /release/, ignore other outputs)
+# Release output (APK kept in /release/, ignore other build dirs)
 app/build/
 player/build/
 quickjs/build/
+# But keep the signed APK
+!Release/*.apk
