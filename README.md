@@ -15,7 +15,7 @@
 
 ## 安装
 
-1. 进入 [Releases](https://github.com/zhongyuan689/花都影视/releases) 下载最新 APK
+1. 进入 [Releases](https://github.com/zhongyuan689/huadutv/releases) 下载最新 APK
 2. 安装到电视/机顶盒（建议先卸载旧版本）
 3. 首次启动会弹出引导，按提示在电视设置中开启自启动
 
