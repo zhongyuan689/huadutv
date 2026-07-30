@@ -66,6 +66,7 @@ public class ModelSettingFragment extends BaseLazyFragment {
     private TextView tvRecStyleText;
     private TextView tvIjkCachePlay;
     private TextView tvHomeDefaultShow;
+    private TextView tvBootLaunch;
 
     private View notificationPoint;
 
@@ -124,6 +125,18 @@ public class ModelSettingFragment extends BaseLazyFragment {
         tvIjkCachePlay.setText(Hawk.get(HawkConfig.IJK_CACHE_PLAY, false) ? "开启" : "关闭");
         tvHomeDefaultShow = findViewById(R.id.tvHomeText);
         tvHomeDefaultShow.setText(Hawk.get(HawkConfig.DEFAULT_LOAD_LIVE, false) ? "直播" : "点播");
+        
+        // 开机自启开关初始化
+        tvBootLaunch = findViewById(R.id.tvBootLaunch);
+        tvBootLaunch.setText(Hawk.get(HawkConfig.BOOT_LAUNCH, true) ? "开启" : "关闭");
+        findViewById(R.id.llBootLaunch).setOnClickListener(v -> {
+            FastClickCheckUtil.check(v);
+            boolean enabled = !Hawk.get(HawkConfig.BOOT_LAUNCH, true);
+            Hawk.put(HawkConfig.BOOT_LAUNCH, enabled);
+            tvBootLaunch.setText(enabled ? "开启" : "关闭");
+            Toast.makeText(mContext, enabled ? "开机自启已开启" : "开机自启已关闭", Toast.LENGTH_SHORT).show();
+        });
+        
         checkHasUpdate();
         findViewById(R.id.llCheckUpdate).setOnClickListener( v -> {
             Toast.makeText(mActivity, "检查更新中...", Toast.LENGTH_SHORT).show();

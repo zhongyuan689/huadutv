@@ -12,6 +12,9 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.github.tvbox.osc.bbox.util.HawkConfig;
+import com.orhanobut.hawk.Hawk;
+
 /**
  * 开机自启接收器。
  *
@@ -42,6 +45,13 @@ public class BootReceiver extends BroadcastReceiver {
         Log.i(TAG, "BootReceiver received action: " + action);
 
         if (!shouldHandle(action)) {
+            return;
+        }
+
+        // 检查用户是否开启了自启动（默认 true）
+        boolean bootLaunchEnabled = Hawk.get(HawkConfig.BOOT_LAUNCH, true);
+        if (!bootLaunchEnabled) {
+            Log.i(TAG, "BootReceiver skip, boot_launch disabled by user");
             return;
         }
 
