@@ -1,0 +1,16 @@
+p = r'C:\Users\zjtyl\Desktop\box-main\app\src\main\java\com\github\tvbox\osc\bbox\ui\activity\HomeActivity.java'
+data = open(p, 'rb').read()
+text = data.decode('utf-8')
+
+lines = text.split('\n')
+print(f'369: {lines[368]!r}')
+print(f'370: {lines[369]!r}')
+print(f'371: {lines[370]!r}')
+print(f'372: {lines[371]!r}')
+print(f'373: {lines[372]!r}')
+print()
+print(f'554: {lines[553]!r}')
+print(f'555: {lines[554]!r}')
+print(f'556: {lines[555]!r}')
+print(f'557: {lines[556]!r}')
+print(f'558: {lines[557]!r}')

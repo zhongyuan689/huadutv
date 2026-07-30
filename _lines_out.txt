@@ -1,0 +1,8 @@
+Line 114: '        verifyPermissions(this);// å\x8a¨æ\x80\x81ç\x94³è¯·æ\x9d\x83é\x99\x90        com.github.tvbox.osc.bbox.receiver.BootHelper.showAutostartTipIfNeeded(this);'
+Line 115: '    }'
+Line 369: '                LOG.i("æ\x9c\x90);'
+Line 370: '            } else {'
+Line 371: '                LOG.i("æ\x97\x90);'
+Line 372: '            }'
+Line 554: '        // æ£\x80æ\x9f\x90fragments ç\x8a¶æ\x80\x90        if (this.fragments.size() <= 0 || this.sortFocused >= this.fragments.size() || this.sortFocused < 0) {'
+Line 555: '            doExit();'

@@ -1,0 +1,802 @@
+0001 | package com.github.tvbox.osc.bbox.ui.activity;
+0002 | 
+0003 | import android.Manifest;
+0004 | import android.animation.Animator;
+0005 | import android.animation.AnimatorSet;
+0006 | import android.animation.IntEvaluator;
+0007 | import android.animation.ObjectAnimator;
+0008 | import android.annotation.SuppressLint;
+0009 | import android.app.Activity;
+0010 | import android.content.Intent;
+0011 | import android.content.pm.PackageManager;
+0012 | import android.content.res.Resources;
+0013 | import android.net.Uri;
+0014 | import android.os.Bundle;
+0015 | import android.os.Handler;
+0016 | import android.provider.Settings;
+0017 | import android.view.KeyEvent;
+0018 | import android.view.View;
+0019 | import android.view.ViewGroup;
+0020 | import android.view.ViewTreeObserver;
+0021 | import android.view.animation.*;
+0022 | import android.widget.ImageView;
+0023 | import android.widget.LinearLayout;
+0024 | import android.widget.TextView;
+0025 | import android.widget.Toast;
+0026 | import androidx.annotation.NonNull;
+0027 | import androidx.annotation.Nullable;
+0028 | import androidx.constraintlayout.widget.ConstraintLayout;
+0029 | import androidx.core.app.ActivityCompat;
+0030 | import androidx.lifecycle.ViewModelProvider;
+0031 | import androidx.recyclerview.widget.DiffUtil;
+0032 | import androidx.recyclerview.widget.RecyclerView;
+0033 | import androidx.viewpager.widget.ViewPager;
+0034 | import com.github.tvbox.osc.bbox.R;
+0035 | import com.github.tvbox.osc.bbox.api.ApiConfig;
+0036 | import com.github.tvbox.osc.bbox.base.BaseActivity;
+0037 | import com.github.tvbox.osc.bbox.base.BaseLazyFragment;
+0038 | import com.github.tvbox.osc.bbox.bean.AbsSortXml;
+0039 | import com.github.tvbox.osc.bbox.bean.MovieSort;
+0040 | import com.github.tvbox.osc.bbox.bean.SourceBean;
+0041 | import com.github.tvbox.osc.bbox.event.RefreshEvent;
+0042 | import com.github.tvbox.osc.bbox.server.ControlManager;
+0043 | import com.github.tvbox.osc.bbox.ui.adapter.HomePageAdapter;
+0044 | import com.github.tvbox.osc.bbox.ui.adapter.SelectDialogAdapter;
+0045 | import com.github.tvbox.osc.bbox.ui.adapter.SortAdapter;
+0046 | import com.github.tvbox.osc.bbox.ui.dialog.SelectDialog;
+0047 | import com.github.tvbox.osc.bbox.ui.dialog.TipDialog;
+0048 | import com.github.tvbox.osc.bbox.ui.fragment.GridFragment;
+0049 | import com.github.tvbox.osc.bbox.ui.fragment.UserFragment;
+0050 | import com.github.tvbox.osc.bbox.ui.tv.widget.DefaultTransformer;
+0051 | import com.github.tvbox.osc.bbox.ui.tv.widget.FixedSpeedScroller;
+0052 | import com.github.tvbox.osc.bbox.ui.tv.widget.NoScrollViewPager;
+0053 | import com.github.tvbox.osc.bbox.ui.tv.widget.ViewObj;
+0054 | import com.github.tvbox.osc.bbox.util.*;
+0055 | import com.github.tvbox.osc.bbox.viewmodel.SourceViewModel;
+0056 | import com.orhanobut.hawk.Hawk;
+0057 | import com.owen.tvrecyclerview.widget.TvRecyclerView;
+0058 | import com.owen.tvrecyclerview.widget.V7GridLayoutManager;
+0059 | import com.owen.tvrecyclerview.widget.V7LinearLayoutManager;
+0060 | import me.jessyan.autosize.utils.AutoSizeUtils;
+0061 | import org.greenrobot.eventbus.EventBus;
+0062 | import org.greenrobot.eventbus.Subscribe;
+0063 | import org.greenrobot.eventbus.ThreadMode;
+0064 | import org.jetbrains.annotations.NotNull;
+0065 | 
+0066 | import java.lang.reflect.Field;
+0067 | import java.text.SimpleDateFormat;
+0068 | import java.util.ArrayList;
+0069 | import java.util.Date;
+0070 | import java.util.List;
+0071 | import java.util.Objects;
+0072 | 
+0073 | public class HomeActivity extends BaseActivity {
+0074 |     private float height = 0f;
+0075 | 
+0076 |     private LinearLayout topLayout;
+0077 |     private LinearLayout contentLayout;
+0078 |     private TextView tvDate;
+0079 |     private TextView tvName;
+0080 |     private ImageView tvSetting;
+0081 |     private TvRecyclerView mGridView;
+0082 |     private NoScrollViewPager mViewPager;
+0083 |     private SourceViewModel sourceViewModel;
+0084 |     private SortAdapter sortAdapter;
+0085 |     private HomePageAdapter pageAdapter;
+0086 |     private View currentView;
+0087 |     private final List<BaseLazyFragment> fragments = new ArrayList<>();
+0088 |     private boolean isDownOrUp = false;
+0089 |     private boolean sortChange = false;
+0090 |     private int currentSelected = 0;
+0091 |     private int sortFocused = 0;
+0092 |     public View sortFocusView = null;
+0093 |     private final Handler mHandler = new Handler();
+0094 |     private long mExitTime = 0;
+0095 |     private final Runnable mRunnable = new Runnable() {
+0096 |         @SuppressLint({"DefaultLocale", "SetTextI18n"})
+0097 |         @Override
+0098 |         public void run() {
+0099 |             Date date = new Date();
+0100 |             @SuppressLint("SimpleDateFormat")
+0101 |             SimpleDateFormat timeFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm");
+0102 |             tvDate.setText(timeFormat.format(date));
+0103 |             mHandler.postDelayed(this, 1000);
+0104 |         }
+0105 |     };
+0106 |     private static Resources res;
+0107 |     public static Resources getRes() {
+0108 |         return res;
+0109 |     }
+0110 | 
+0111 |     @Override
+0112 |     protected void onCreate(@Nullable @org.jetbrains.annotations.Nullable Bundle savedInstanceState) {
+0113 |         super.onCreate(savedInstanceState);
+0114 |         verifyPermissions(this);
+0115 |         com.github.tvbox.osc.bbox.receiver.BootHelper.showAutostartTipIfNeeded(this);
+0116 |     }
+0117 | 
+0118 |     private static final int REQUEST_EXTERNAL_STORAGE = 1;
+0119 |     private static String[] PERMISSIONS_STORAGE = {
+0120 |             "android.permission.READ_EXTERNAL_STORAGE",
+0121 |             "android.permission.WRITE_EXTERNAL_STORAGE"};
+0122 | 
+0123 | 
+0124 |     // 鍦╫nCreate()鏂规硶涓皟鐢ㄨ鏂规硶鍗冲彲
+0125 |     public void verifyPermissions(Activity activity) {
+0126 | 
+0127 |         try {
+0128 |             // 妫娴嬫槸鍚︽湁鍐欑殑鏉冮檺
+0129 |             int rwPermission = ActivityCompat.checkSelfPermission(activity,
+0130 |                     "android.permission.WRITE_EXTERNAL_STORAGE");
+0131 |             if (rwPermission != PackageManager.PERMISSION_GRANTED) {
+0132 |                 // 娌℃湁鍐欑殑鏉冮檺锛屽幓鐢宠鍐欑殑鏉冮檺锛屼細寮瑰嚭瀵硅瘽妗                ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE, REQUEST_EXTERNAL_STORAGE);
+0133 |             }
+0134 |         } catch (Exception e) {
+0135 |             e.printStackTrace();
+0136 |         }
+0137 |     }
+0138 | 
+0139 | 
+0140 |     @Override
+0141 |     protected int getLayoutResID() {
+0142 |         return R.layout.activity_home;
+0143 |     }
+0144 | 
+0145 |     boolean useCacheConfig = false;
+0146 | 
+0147 |     @Override
+0148 |     protected void init() {
+0149 |         // takagen99: Added to allow read string
+0150 |         res = getResources();
+0151 | 
+0152 |         EventBus.getDefault().register(this);
+0153 |         ControlManager.get().startServer();
+0154 |         initView();
+0155 |         initViewModel();
+0156 |         useCacheConfig = false;
+0157 |         Intent intent = getIntent();
+0158 |         if (intent != null && intent.getExtras() != null) {
+0159 |             Bundle bundle = intent.getExtras();
+0160 |             useCacheConfig = bundle.getBoolean("useCache", false);
+0161 |         }
+0162 |         initData();
+0163 |     }
+0164 | 
+0165 |     private View.OnFocusChangeListener focusChangeListener = (v, hasFocus) -> {
+0166 |         if (hasFocus)
+0167 |             // v.animate().rotation(180f).setDuration(100).setInterpolator(new BounceInterpolator()).start();
+0168 |             v.animate().rotation(60f).setDuration(100).setInterpolator(new LinearInterpolator()).start();
+0169 |         else
+0170 |             // v.animate().rotation(0f).setDuration(100).setInterpolator(new BounceInterpolator()).start();
+0171 |             v.animate().rotation(0f).setDuration(100).setInterpolator(new LinearInterpolator()).start();
+0172 |     };
+0173 | 
+0174 |     private void initView() {
+0175 |         this.tvSetting = findViewById(R.id.setting);
+0176 |         this.topLayout = findViewById(R.id.topLayout);
+0177 |         this.tvDate = findViewById(R.id.tvDate);
+0178 |         this.tvName = findViewById(R.id.tvName);
+0179 |         this.contentLayout = findViewById(R.id.contentLayout);
+0180 |         this.mGridView = findViewById(R.id.mGridView);
+0181 |         this.mViewPager = findViewById(R.id.mViewPager);
+0182 |         this.sortAdapter = new SortAdapter();
+0183 |         this.mGridView.setLayoutManager(new V7LinearLayoutManager(this.mContext, 0, false));
+0184 |         this.mGridView.setSpacingWithMargins(0, AutoSizeUtils.dp2px(this.mContext, 10.0f));
+0185 |         this.mGridView.setAdapter(this.sortAdapter);
+0186 |         sortAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+0187 |             @Override
+0188 |             public void onChanged() {
+0189 |                 mGridView.post(() -> {
+0190 |                     View firstChild = Objects.requireNonNull(mGridView.getLayoutManager()).findViewByPosition(0);
+0191 |                     if (firstChild != null) {
+0192 |                         mGridView.setSelectedPosition(0);
+0193 |                         firstChild.requestFocus();
+0194 |                     }
+0195 |                 });
+0196 |             }
+0197 |         });
+0198 |         this.mGridView.setOnItemListener(new TvRecyclerView.OnItemListener() {
+0199 |             public void onItemPreSelected(TvRecyclerView tvRecyclerView, View view, int position) {
+0200 |                 if (view != null && !HomeActivity.this.isDownOrUp) {
+0201 |                     mHandler.postDelayed(new Runnable() {
+0202 |                         @Override
+0203 |                         public void run() {
+0204 |                             TextView textView = view.findViewById(R.id.tvTitle);
+0205 |                             textView.getPaint().setFakeBoldText(false);
+0206 |                             if (sortFocused == p) {
+0207 |                                 view.animate().scaleX(1.1f).scaleY(1.1f).setInterpolator(new BounceInterpolator()).setDuration(300).start();
+0208 |                                 textView.setTextColor(HomeActivity.this.getResources().getColor(R.color.color_FFFFFF));
+0209 |                             } else {
+0210 |                                 view.animate().scaleX(1.0f).scaleY(1.0f).setDuration(300).start();
+0211 |                                 textView.setTextColor(HomeActivity.this.getResources().getColor(R.color.color_BBFFFFFF));
+0212 |                                 view.findViewById(R.id.tvFilter).setVisibility(View.GONE);
+0213 |                                 view.findViewById(R.id.tvFilterColor).setVisibility(View.GONE);
+0214 |                             }
+0215 |                             textView.invalidate();
+0216 |                         }
+0217 | 
+0218 |                         public final int p = position;
+0219 |                     }, 10);
+0220 |                 }
+0221 |             }
+0222 | 
+0223 |             public void onItemSelected(TvRecyclerView tvRecyclerView, View view, int position) {
+0224 |                 if (view != null) {
+0225 |                     HomeActivity.this.currentView = view;
+0226 |                     HomeActivity.this.isDownOrUp = false;
+0227 |                     HomeActivity.this.sortChange = true;
+0228 |                     view.animate().scaleX(1.1f).scaleY(1.1f).setInterpolator(new BounceInterpolator()).setDuration(300).start();
+0229 |                     TextView textView = view.findViewById(R.id.tvTitle);
+0230 |                     textView.getPaint().setFakeBoldText(true);
+0231 |                     textView.setTextColor(HomeActivity.this.getResources().getColor(R.color.color_FFFFFF));
+0232 |                     textView.invalidate();
+0233 |                     MovieSort.SortData sortData = sortAdapter.getItem(position);
+0234 |                     if (!sortData.filters.isEmpty()) {
+0235 |                         showFilterIcon(sortData.filterSelectCount());
+0236 |                     }
+0237 |                     HomeActivity.this.sortFocusView = view;
+0238 |                     HomeActivity.this.sortFocused = position;
+0239 |                     mHandler.removeCallbacks(mDataRunnable);
+0240 |                     mHandler.postDelayed(mDataRunnable, 200);
+0241 |                 }
+0242 |             }
+0243 | 
+0244 |             @Override
+0245 |             public void onItemClick(TvRecyclerView parent, View itemView, int position) {
+0246 |                 if (itemView != null && currentSelected == position) {
+0247 |                     BaseLazyFragment baseLazyFragment = fragments.get(currentSelected);
+0248 |                     if ((baseLazyFragment instanceof GridFragment) && !sortAdapter.getItem(position).filters.isEmpty()) {// 寮瑰嚭绛涢                        ((GridFragment) baseLazyFragment).showFilter();
+0249 |                     } else if (baseLazyFragment instanceof UserFragment) {
+0250 |                         showSiteSwitch();
+0251 |                     }
+0252 |                 }
+0253 |             }
+0254 |         });
+0255 | 
+0256 |         this.mGridView.setOnInBorderKeyEventListener(new TvRecyclerView.OnInBorderKeyEventListener() {
+0257 |             public boolean onInBorderKeyEvent(int direction, View view) {
+0258 |                 if (direction == View.FOCUS_UP) {
+0259 |                     BaseLazyFragment baseLazyFragment = fragments.get(sortFocused);
+0260 |                     if ((baseLazyFragment instanceof GridFragment)) {
+0261 |                         ((GridFragment) baseLazyFragment).forceRefresh();
+0262 |                     }
+0263 |                 }
+0264 |                 if (direction != View.FOCUS_DOWN) {
+0265 |                     return false;
+0266 |                 }
+0267 |                 BaseLazyFragment baseLazyFragment = fragments.get(sortFocused);
+0268 |                 if (!(baseLazyFragment instanceof GridFragment)) {
+0269 |                     return false;
+0270 |                 }
+0271 |                 return !((GridFragment) baseLazyFragment).isLoad();
+0272 |             }
+0273 |         });
+0274 | 
+0275 |         tvSetting.clearFocus();
+0276 |         tvSetting.setOnFocusChangeListener(focusChangeListener);
+0277 |         tvSetting.setOnClickListener(view -> {
+0278 |             FastClickCheckUtil.check(view, 500);
+0279 |             jumpActivity(SettingActivity.class);
+0280 |         });
+0281 |         // Button : Settings >> To go into App Settings ----------------
+0282 |         tvSetting.setOnLongClickListener(view -> {
+0283 |             startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", getPackageName(), null)));
+0284 |             return true;
+0285 |         });
+0286 |         tvName.setOnClickListener(new View.OnClickListener() {
+0287 |             @Override
+0288 |             public void onClick(View v) {
+0289 |                 // dataInitOk = false;
+0290 |                 // jarInitOk = true;
+0291 |                 // showSiteSwitch();
+0292 |                 if (dataInitOk && jarInitOk) {
+0293 |                     FastClickCheckUtil.check(v, 1000);
+0294 |                     Toast.makeText(mContext, "鍔犺浇搴旂敤鍒楄〃涓..", Toast.LENGTH_SHORT).show();
+0295 |                     jumpActivity(AppsActivity.class);
+0296 |                 } else {
+0297 |                     FastClickCheckUtil.check(v, 1000);
+0298 |                     jumpActivity(SettingActivity.class);
+0299 |                 }
+0300 |             }
+0301 |         });
+0302 |         tvName.setOnLongClickListener(new View.OnLongClickListener() {
+0303 |             @Override
+0304 |             public boolean onLongClick(View v) {
+0305 |                 if (dataInitOk && jarInitOk) {
+0306 |                     Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
+0307 |                     intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+0308 |                     Bundle bundle = new Bundle();
+0309 |                     bundle.putBoolean("useCache", true);
+0310 |                     intent.putExtras(bundle);
+0311 |                     HomeActivity.this.startActivity(intent);
+0312 |                 } else {
+0313 |                     jumpActivity(SettingActivity.class);
+0314 |                 }
+0315 |                 return true;
+0316 |             }
+0317 |         });
+0318 |         setLoadSir(this.contentLayout);
+0319 |         // mHandler.postDelayed(mFindFocus, 500);
+0320 | 
+0321 | 
+0322 |         ViewTreeObserver vto = topLayout.getViewTreeObserver();
+0323 |         vto.addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+0324 |             @Override
+0325 |             public boolean onPreDraw() {
+0326 |                 // width = tvSetting.getMeasuredWidth()*1f;
+0327 |                 if (vto.isAlive()) {
+0328 |                     vto.removeOnPreDrawListener(this);
+0329 |                 }
+0330 |                 //涓瀹氳杩斿洖true锛岃繑鍥瀎alse浼氫笉杩涜缁樺埗锛岀晫闈㈢┖鐧                return true;
+0331 |             }
+0332 |         });
+0333 |     }
+0334 | 
+0335 | 
+0336 |     private boolean skipNextUpdate = false;
+0337 | 
+0338 |     private void initViewModel() {
+0339 |         sourceViewModel = new ViewModelProvider(this).get(SourceViewModel.class);
+0340 |         sourceViewModel.sortResult.observe(this, absXml -> {
+0341 |             if (skipNextUpdate) {
+0342 |                 skipNextUpdate = false;
+0343 |                 return;
+0344 |             }
+0345 |             showSuccess();
+0346 |             if (absXml != null && absXml.classes != null && absXml.classes.sortList != null) {
+0347 |                 sortAdapter.setNewData(DefaultConfig.adjustSort(ApiConfig.get().getHomeSourceBean().getKey(), absXml.classes.sortList, true));
+0348 |             } else {
+0349 |                 sortAdapter.setNewData(DefaultConfig.adjustSort(ApiConfig.get().getHomeSourceBean().getKey(), new ArrayList<>(), true));
+0350 |             }
+0351 |             initViewPager(absXml);
+0352 |             SourceBean home = ApiConfig.get().getHomeSourceBean();
+0353 |             if (home != null && home.getName() != null && !home.getName().isEmpty()) tvName.setText(home.getName());
+0354 |             tvName.clearAnimation();
+0355 |         });
+0356 |     }
+0357 | 
+0358 |     private boolean dataInitOk = false;
+0359 |     private boolean jarInitOk = false;
+0360 | 
+0361 |     private void initData() {
+0362 |         SourceBean home = ApiConfig.get().getHomeSourceBean();
+0363 |         if (home != null && home.getName() != null && !home.getName().isEmpty())
+0364 |             tvName.setText(home.getName());
+0365 |         // 榛樿缁欎富椤垫寜閽劍鐐        mGridView.requestFocus();
+0366 |         if (dataInitOk && jarInitOk) {
+0367 |             showLoading();
+0368 |             sourceViewModel.getSort(ApiConfig.get().getHomeSourceBean().getKey());
+0369 |             if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+0370 |                 LOG.i("鏈);
+0371 |             } else {
+0372 |                 LOG.i("鏃);
+0373 |             }
+0374 |             if (!useCacheConfig && Hawk.get(HawkConfig.DEFAULT_LOAD_LIVE, false)) {
+0375 |                 jumpActivity(LivePlayActivity.class);
+0376 |             }
+0377 |             return;
+0378 |         }
+0379 |         tvNameAnimation();
+0380 |         showLoading();
+0381 |         if (dataInitOk && !jarInitOk) {
+0382 |             if (!ApiConfig.get().getSpider().isEmpty()) {
+0383 |                 ApiConfig.get().loadJar(useCacheConfig, ApiConfig.get().getSpider(), new ApiConfig.LoadConfigCallback() {
+0384 |                     @Override
+0385 |                     public void success() {
+0386 |                         jarInitOk = true;
+0387 |                         mHandler.postDelayed(new Runnable() {
+0388 |                             @Override
+0389 |                             public void run() {
+0390 | //                                if (!useCacheConfig) Toast.makeText(HomeActivity.this, "鑷畾涔塲ar鍔犺浇鎴愬姛", Toast.LENGTH_SHORT).show();
+0391 |                                 initData();
+0392 |                             }
+0393 |                         }, 50);
+0394 |                     }
+0395 | 
+0396 |                     @Override
+0397 |                     public void notice(String msg) {
+0398 |                         mHandler.post(new Runnable() {
+0399 |                             @Override
+0400 |                             public void run() {
+0401 |                                 Toast.makeText(HomeActivity.this, msg, Toast.LENGTH_SHORT).show();
+0402 |                             }
+0403 |                         });
+0404 |                     }
+0405 | 
+0406 |                     @Override
+0407 |                     public void error(String msg) {
+0408 |                         jarInitOk = true;
+0409 |                         dataInitOk = true;
+0410 |                         mHandler.postDelayed(new Runnable() {
+0411 |                             @Override
+0412 |                             public void run() {
+0413 |                                 Toast.makeText(HomeActivity.this, msg+"; 灏濊瘯鍔犺浇鏈杩戜竴娆＄殑jar", Toast.LENGTH_SHORT).show();
+0414 |                                 initData();
+0415 |                             }
+0416 |                         },50);
+0417 |                     }
+0418 |                 });
+0419 |             }
+0420 |             return;
+0421 |         }
+0422 |         ApiConfig.get().loadConfig(useCacheConfig, new ApiConfig.LoadConfigCallback() {
+0423 |             TipDialog dialog = null;
+0424 | 
+0425 |             @Override
+0426 |             public void notice(String msg) {
+0427 |                 mHandler.post(new Runnable() {
+0428 |                     @Override
+0429 |                     public void run() {
+0430 |                         Toast.makeText(HomeActivity.this, msg, Toast.LENGTH_SHORT).show();
+0431 |                     }
+0432 |                 });
+0433 |             }
+0434 | 
+0435 |             @Override
+0436 |             public void success() {
+0437 |                 dataInitOk = true;
+0438 |                 if (ApiConfig.get().getSpider().isEmpty()) {
+0439 |                     jarInitOk = true;
+0440 |                 }
+0441 |                 mHandler.postDelayed(new Runnable() {
+0442 |                     @Override
+0443 |                     public void run() {
+0444 |                         initData();
+0445 |                     }
+0446 |                 }, 50);
+0447 |             }
+0448 | 
+0449 |             @Override
+0450 |             public void error(String msg) {
+0451 |                 if (msg.equalsIgnoreCase("-1")) {
+0452 |                     mHandler.post(new Runnable() {
+0453 |                         @Override
+0454 |                         public void run() {
+0455 |                             dataInitOk = true;
+0456 |                             jarInitOk = true;
+0457 |                             initData();
+0458 |                         }
+0459 |                     });
+0460 |                     return;
+0461 |                 }
+0462 |                 mHandler.post(new Runnable() {
+0463 |                     @Override
+0464 |                     public void run() {
+0465 |                         if (dialog == null)
+0466 |                             dialog = new TipDialog(HomeActivity.this, msg, "閲嶈瘯", "鍙栨秷", new TipDialog.OnListener() {
+0467 |                                 @Override
+0468 |                                 public void left() {
+0469 |                                     mHandler.post(new Runnable() {
+0470 |                                         @Override
+0471 |                                         public void run() {
+0472 |                                             initData();
+0473 |                                             dialog.hide();
+0474 |                                         }
+0475 |                                     });
+0476 |                                 }
+0477 | 
+0478 |                                 @Override
+0479 |                                 public void right() {
+0480 |                                     dataInitOk = true;
+0481 |                                     jarInitOk = true;
+0482 |                                     mHandler.post(new Runnable() {
+0483 |                                         @Override
+0484 |                                         public void run() {
+0485 |                                             initData();
+0486 |                                             dialog.hide();
+0487 |                                         }
+0488 |                                     });
+0489 |                                 }
+0490 | 
+0491 |                                 @Override
+0492 |                                 public void cancel() {
+0493 |                                     dataInitOk = true;
+0494 |                                     jarInitOk = true;
+0495 |                                     mHandler.post(new Runnable() {
+0496 |                                         @Override
+0497 |                                         public void run() {
+0498 |                                             initData();
+0499 |                                             dialog.hide();
+0500 |                                         }
+0501 |                                     });
+0502 |                                 }
+0503 |                             });
+0504 |                         if (!dialog.isShowing())
+0505 |                             dialog.show();
+0506 |                     }
+0507 |                 });
+0508 |             }
+0509 |         }, this);
+0510 |     }
+0511 | 
+0512 |     private void initViewPager(AbsSortXml absXml) {
+0513 |         if (sortAdapter.getData().size() > 0) {
+0514 |             for (MovieSort.SortData data : sortAdapter.getData()) {
+0515 |                 if (data.id.equals("my0")) {
+0516 |                     if (Hawk.get(HawkConfig.HOME_REC, 0) == 1 && absXml != null && absXml.videoList != null && absXml.videoList.size() > 0) {
+0517 |                         fragments.add(UserFragment.newInstance(absXml.videoList));
+0518 |                     } else {
+0519 |                         fragments.add(UserFragment.newInstance(null));
+0520 |                     }
+0521 |                 } else {
+0522 |                     fragments.add(GridFragment.newInstance(data));
+0523 |                 }
+0524 |             }
+0525 |             pageAdapter = new HomePageAdapter(getSupportFragmentManager(), fragments);
+0526 |             try {
+0527 |                 Field field = ViewPager.class.getDeclaredField("mScroller");
+0528 |                 field.setAccessible(true);
+0529 |                 FixedSpeedScroller scroller = new FixedSpeedScroller(mContext, new AccelerateInterpolator());
+0530 |                 field.set(mViewPager, scroller);
+0531 |                 scroller.setmDuration(300);
+0532 |             } catch (Exception e) {
+0533 |                 LOG.e(e.getMessage());
+0534 |             }
+0535 |             mViewPager.setPageTransformer(true, new DefaultTransformer());
+0536 |             mViewPager.setAdapter(pageAdapter);
+0537 |             mViewPager.setCurrentItem(currentSelected, false);
+0538 |         }
+0539 |     }
+0540 | 
+0541 |     @SuppressLint("NotifyDataSetChanged")
+0542 |     @Override
+0543 |     public void onBackPressed() {
+0544 |         // 鎵撴柇鍔犺浇
+0545 |         if (isLoading()) {
+0546 |             refreshEmpty();
+0547 |             return;
+0548 |         }
+0549 |         // 濡傛灉澶勪簬 VOD 鍒犻櫎妯″紡锛屽垯閫鍑鸿妯″紡骞跺埛鏂扮晫闈        if (HawkConfig.hotVodDelete) {
+0550 |             HawkConfig.hotVodDelete = false;
+0551 |             UserFragment.homeHotVodAdapter.notifyDataSetChanged();
+0552 |             return;
+0553 |         }
+0554 | 
+0555 |         // 妫鏌恌ragments 鐘舵        if (this.fragments.size() <= 0 || this.sortFocused >= this.fragments.size() || this.sortFocused < 0) {
+0556 |             doExit();
+0557 |             return;
+0558 |         }
+0559 | 
+0560 |         BaseLazyFragment baseLazyFragment = this.fragments.get(this.sortFocused);
+0561 |         if (baseLazyFragment instanceof GridFragment) {
+0562 |             GridFragment grid = (GridFragment) baseLazyFragment;
+0563 |             // 濡傛灉褰撳墠 Fragment 鑳芥仮澶嶄箣鍓嶄繚瀛樼殑 UI 鐘舵侊紝鍒欑洿鎺ヨ繑鍥            if (grid.restoreView()) {
+0564 |                 return;
+0565 |             }
+0566 |             // 濡傛灉 sortFocusView 瀛樺湪涓旀病鏈夎幏鍙栫劍鐐癸紝鍒欒姹傜劍鐐            if (this.sortFocusView != null && !this.sortFocusView.isFocused()) {
+0567 |                 this.sortFocusView.requestFocus();
+0568 |             }
+0569 |             // 濡傛灉褰撳墠涓嶆槸绗竴涓晫闈紝鍒欏皢鍒楄〃璁剧疆鍒扮涓椤            else if (this.sortFocused != 0) {
+0570 |                 this.mGridView.setSelection(0);
+0571 |             } else {
+0572 |                 doExit();
+0573 |             }
+0574 |         } else if (baseLazyFragment instanceof UserFragment && UserFragment.tvHotList.canScrollVertically(-1)) {
+0575 |             // 濡傛灉 UserFragment 鍒楄〃鍙互鍚戜笂婊氬姩锛屽垯婊氬姩鍒伴《閮            UserFragment.tvHotList.scrollToPosition(0);
+0576 |             this.mGridView.setSelection(0);
+0577 |         } else {
+0578 |             doExit();
+0579 |         }
+0580 |     }
+0581 | 
+0582 |     private void doExit() {
+0583 |         // 濡傛灉涓ゆ杩斿洖闂撮殧灏忎簬 2000 姣锛屽垯閫鍑哄簲鐢        if (System.currentTimeMillis() - mExitTime < 2000) {
+0584 |             AppManager.getInstance().finishAllActivity();
+0585 |             EventBus.getDefault().unregister(this);
+0586 |             ControlManager.get().stopServer();
+0587 |             finish();
+0588 |             android.os.Process.killProcess(android.os.Process.myPid());
+0589 |             System.exit(0);
+0590 |         } else {
+0591 |             // 鍚﹀垯浠呮彁绀虹敤鎴凤紝鍐嶆寜涓娆￠鍑哄簲鐢            mExitTime = System.currentTimeMillis();
+0592 |             Toast.makeText(mContext, "鍐嶆寜涓娆¤繑鍥為敭閫鍑哄簲鐢, Toast.LENGTH_SHORT).show();
+0593 |         }
+0594 |     }
+0595 | 
+0596 |     @Override
+0597 |     protected void onResume() {
+0598 |         super.onResume();
+0599 |         mHandler.post(mRunnable);
+0600 |     }
+0601 | 
+0602 | 
+0603 |     @Override
+0604 |     protected void onPause() {
+0605 |         super.onPause();
+0606 |         mHandler.removeCallbacksAndMessages(null);
+0607 |     }
+0608 | 
+0609 |     @Subscribe(threadMode = ThreadMode.MAIN)
+0610 |     public void refresh(RefreshEvent event) {
+0611 |         if (event.type == RefreshEvent.TYPE_PUSH_URL) {
+0612 |             if (ApiConfig.get().getSource("push_agent") != null) {
+0613 |                 Intent newIntent = new Intent(mContext, DetailActivity.class);
+0614 |                 newIntent.putExtra("id", (String) event.obj);
+0615 |                 newIntent.putExtra("sourceKey", "push_agent");
+0616 |                 newIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+0617 |                 HomeActivity.this.startActivity(newIntent);
+0618 |             }
+0619 |         } else if (event.type == RefreshEvent.TYPE_FILTER_CHANGE) {
+0620 |             if (currentView != null) {
+0621 |                 showFilterIcon((int) event.obj);
+0622 |             }
+0623 |         }
+0624 |     }
+0625 | 
+0626 |     private void showFilterIcon(int count) {
+0627 |         boolean visible = count > 0;
+0628 |         currentView.findViewById(R.id.tvFilterColor).setVisibility(visible ? View.VISIBLE : View.GONE);
+0629 |         currentView.findViewById(R.id.tvFilter).setVisibility(visible ? View.GONE : View.VISIBLE);
+0630 |     }
+0631 | 
+0632 |     private final Runnable mDataRunnable = new Runnable() {
+0633 |         @Override
+0634 |         public void run() {
+0635 |             if (sortChange) {
+0636 |                 sortChange = false;
+0637 |                 if (sortFocused != currentSelected) {
+0638 |                     currentSelected = sortFocused;
+0639 |                     mViewPager.setCurrentItem(sortFocused, false);
+0640 |                     changeTop(sortFocused != 0);
+0641 |                 }
+0642 |             }
+0643 |         }
+0644 |     };
+0645 | 
+0646 |     private long menuKeyDownTime = 0;
+0647 |     private static final long LONG_PRESS_THRESHOLD = 2000; // 璁剧疆闀挎寜鐨勯槇鍊硷紝鍗曚綅鏄绉    @Override
+0648 |     public boolean dispatchKeyEvent(KeyEvent event) {
+0649 |         if (topHide < 0)
+0650 |             return false;
+0651 |         int keyCode = event.getKeyCode();
+0652 |         if (keyCode == KeyEvent.KEYCODE_MENU) {
+0653 |             if (event.getAction() == KeyEvent.ACTION_DOWN) {
+0654 |                 menuKeyDownTime = System.currentTimeMillis();
+0655 |             } else if (event.getAction() == KeyEvent.ACTION_UP) {
+0656 |                 long pressDuration = System.currentTimeMillis() - menuKeyDownTime;
+0657 |                 if (pressDuration >= LONG_PRESS_THRESHOLD) {
+0658 |                     jumpActivity(SettingActivity.class);;
+0659 |                 }else {
+0660 |                     showSiteSwitch();
+0661 |                 }
+0662 |             }
+0663 |         }
+0664 |         return super.dispatchKeyEvent(event);
+0665 |     }
+0666 | 
+0667 |     byte topHide = 0;
+0668 | 
+0669 |     private void changeTop(boolean hide) {
+0670 |         ViewObj viewObj = new ViewObj(topLayout, (ViewGroup.MarginLayoutParams) topLayout.getLayoutParams());
+0671 |         AnimatorSet animatorSet = new AnimatorSet();
+0672 |         animatorSet.addListener(new Animator.AnimatorListener() {
+0673 |             @Override
+0674 |             public void onAnimationStart(Animator animation) {
+0675 | 
+0676 |             }
+0677 | 
+0678 |             @Override
+0679 |             public void onAnimationEnd(Animator animation) {
+0680 |                 topHide = (byte) (hide ? 1 : 0);
+0681 |             }
+0682 | 
+0683 |             @Override
+0684 |             public void onAnimationCancel(Animator animation) {
+0685 | 
+0686 |             }
+0687 | 
+0688 |             @Override
+0689 |             public void onAnimationRepeat(Animator animation) {
+0690 | 
+0691 |             }
+0692 |         });
+0693 |         if (hide && topHide == 0) {
+0694 |             animatorSet.playTogether(ObjectAnimator.ofObject(viewObj, "marginTop", new IntEvaluator(),
+0695 |                             AutoSizeUtils.mm2px(this.mContext, 10.0f),
+0696 |                             AutoSizeUtils.mm2px(this.mContext, 0.0f)),
+0697 |                     ObjectAnimator.ofObject(viewObj, "height", new IntEvaluator(),
+0698 |                             AutoSizeUtils.mm2px(this.mContext, 70f),
+0699 |                             // AutoSizeUtils.mm2px(this.mContext, 50.0f),
+0700 |                             AutoSizeUtils.mm2px(this.mContext, 1.0f)),
+0701 |                     ObjectAnimator.ofFloat(this.topLayout, "alpha", 1.0f, 0.0f)
+0702 |             );
+0703 |             animatorSet.setDuration(200);
+0704 |             animatorSet.start();
+0705 |             tvSetting.setFocusable(false);
+0706 |             return;
+0707 |         }
+0708 |         if (!hide && topHide == 1) {
+0709 |             animatorSet.playTogether(ObjectAnimator.ofObject(viewObj, "marginTop", new IntEvaluator(),
+0710 |                             AutoSizeUtils.mm2px(this.mContext, 0.0f),
+0711 |                             AutoSizeUtils.mm2px(this.mContext, 10.0f)),
+0712 |                     ObjectAnimator.ofObject(viewObj, "height", new IntEvaluator(),
+0713 |                             AutoSizeUtils.mm2px(this.mContext, 1.0f),
+0714 |                             AutoSizeUtils.mm2px(this.mContext, 70f)),
+0715 |                     ObjectAnimator.ofFloat(this.topLayout, "alpha", 0.0f, 1.0f)
+0716 |             );
+0717 |             animatorSet.setDuration(200);
+0718 |             animatorSet.start();
+0719 |             tvSetting.setFocusable(true);
+0720 |         }
+0721 |     }
+0722 | 
+0723 |     @Override
+0724 |     protected void onDestroy() {
+0725 |         super.onDestroy();
+0726 |         EventBus.getDefault().unregister(this);
+0727 |         AppManager.getInstance().appExit(0);
+0728 |         ControlManager.get().stopServer();
+0729 |     }
+0730 | 
+0731 |     private SelectDialog<SourceBean> mSiteSwitchDialog;
+0732 | 
+0733 |     void showSiteSwitch() {
+0734 |         List<SourceBean> sites = ApiConfig.get().getSwitchSourceBeanList();
+0735 |         if (sites.isEmpty()) return;
+0736 |         int select = sites.indexOf(ApiConfig.get().getHomeSourceBean());
+0737 |         if (select < 0 || select >= sites.size()) select = 0;
+0738 |         if (mSiteSwitchDialog == null) {
+0739 |             mSiteSwitchDialog = new SelectDialog<>(HomeActivity.this);
+0740 |             TvRecyclerView tvRecyclerView = mSiteSwitchDialog.findViewById(R.id.list);
+0741 |             // 鏍规嵁 sites 鏁伴噺鍔ㄦ佽绠楀垪鏁            int spanCount = (int) Math.floor(sites.size() / 20.0);
+0742 |             spanCount = Math.min(spanCount, 2);
+0743 |             tvRecyclerView.setLayoutManager(new V7GridLayoutManager(mSiteSwitchDialog.getContext(), spanCount + 1));
+0744 |             // 璁剧疆瀵硅瘽妗嗗搴            ConstraintLayout cl_root = mSiteSwitchDialog.findViewById(R.id.cl_root);
+0745 |             ViewGroup.LayoutParams clp = cl_root.getLayoutParams();
+0746 |             clp.width = AutoSizeUtils.mm2px(mSiteSwitchDialog.getContext(), 380 + 200 * spanCount);
+0747 |             mSiteSwitchDialog.setTip("璇烽夋嫨棣栭〉鏁版嵁婧);
+0748 |         }
+0749 |         mSiteSwitchDialog.setAdapter(new SelectDialogAdapter.SelectDialogInterface<SourceBean>() {
+0750 |             @Override
+0751 |             public void click(SourceBean value, int pos) {
+0752 |                 ApiConfig.get().setSourceBean(value);
+0753 |                 refreshHome();
+0754 |             }
+0755 |             @Override
+0756 |             public String getDisplay(SourceBean val) {
+0757 |                 return val.getName();
+0758 |             }
+0759 |         }, new DiffUtil.ItemCallback<SourceBean>() {
+0760 |             @Override
+0761 |             public boolean areItemsTheSame(@NonNull SourceBean oldItem, @NonNull SourceBean newItem) {
+0762 |                 return oldItem == newItem;
+0763 |             }
+0764 | 
+0765 |             @Override
+0766 |             public boolean areContentsTheSame(@NonNull SourceBean oldItem, @NonNull SourceBean newItem) {
+0767 |                 return oldItem.getKey().equals(newItem.getKey());
+0768 |             }
+0769 |         }, sites, select);
+0770 |         mSiteSwitchDialog.show();
+0771 |     }
+0772 | 
+0773 |     private void refreshHome()
+0774 |     {
+0775 |         Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
+0776 |         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
+0777 |         Bundle bundle = new Bundle();
+0778 |         bundle.putBoolean("useCache", true);
+0779 |         intent.putExtras(bundle);
+0780 |         HomeActivity.this.startActivity(intent);
+0781 |     }
+0782 | 
+0783 |     private void refreshEmpty()
+0784 |     {
+0785 |         skipNextUpdate=true;
+0786 |         showSuccess();
+0787 |         sortAdapter.setNewData(DefaultConfig.adjustSort(ApiConfig.get().getHomeSourceBean().getKey(), new ArrayList<>(), true));
+0788 |         initViewPager(null);
+0789 |         tvName.clearAnimation();
+0790 |     }
+0791 | 
+0792 |     private void tvNameAnimation()
+0793 |     {
+0794 |         AlphaAnimation blinkAnimation = new AlphaAnimation(0.0f, 1.0f);
+0795 |         blinkAnimation.setDuration(500);
+0796 |         blinkAnimation.setStartOffset(20);
+0797 |         blinkAnimation.setRepeatMode(Animation.REVERSE);
+0798 |         blinkAnimation.setRepeatCount(Animation.INFINITE);
+0799 |         tvName.startAnimation(blinkAnimation);
+0800 |     }
+0801 | }
+0802 | 
