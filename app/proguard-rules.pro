@@ -230,3 +230,11 @@
     <methods>;
 }
 
+# 保留 BootHelper（开机自启动引导）
+-keep class com.github.tvbox.osc.bbox.receiver.BootHelper { *; }
+
+# 保留 HawkConfig 中的 BOOT_LAUNCH 配置 key
+-keepclassmembers class com.github.tvbox.osc.bbox.util.HawkConfig {
+    public static <fields>;
+}
+
